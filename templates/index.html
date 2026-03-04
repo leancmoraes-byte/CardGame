@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Game PvP</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg: #f1f4f8;
+            --panel: #ffffff;
+            --text: #1e2a36;
+            --muted: #5f6c7a;
+            --accent: #007f5f;
+            --danger: #a4161a;
+            --border: #d6dde6;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(160deg, #eff3f8, #dfe7f1);
+            color: var(--text);
+        }
+
+        main {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            margin: 0 0 12px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+
+        .lobby {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .status {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .status.error {
+            color: var(--danger);
+        }
+
+        input, button {
+            font: inherit;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        button {
+            cursor: pointer;
+            background: #ffffff;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .hand-line {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        .hand-line:last-child {
+            border-bottom: none;
+        }
+
+        .hand-card {
+            min-width: 200px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 560px;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 8px;
+            text-align: left;
+        }
+
+        .log {
+            margin: 0;
+            padding-left: 18px;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Card Game PvP</h1>
+
+    <div class="card">
+        <p id="status" class="status">Conectando...</p>
+        <div class="lobby">
+            <button id="createBtn">Criar sala</button>
+            <input id="roomInput" placeholder="Codigo da sala" maxlength="6">
+            <button id="joinBtn">Entrar</button>
+        </div>
+        <p id="roomDisplay">Sala: -</p>
+    </div>
+
+    <section id="game" hidden>
+        <div class="card">
+            <h3>Estado da partida</h3>
+            <div id="stateTable">Sem dados ainda.</div>
+            <h3>Calculo do ultimo ataque</h3>
+            <div id="attackTable">Nenhum ataque registrado.</div>
+        </div>
+
+        <div class="card">
+            <h3>Sua mao</h3>
+            <div id="hand"></div>
+            <div class="actions">
+                <button id="drawBtn">Comprar carta</button>
+                <button id="attackBtn">Atacar</button>
+                <button id="endTurnBtn">Encerrar turno</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Dicas de afinidade</h3>
+            <div id="tips">Sem dados ainda.</div>
+        </div>
+
+        <div class="card">
+            <h3>Log</h3>
+            <ul id="log" class="log"></ul>
+        </div>
+    </section>
+</main>
+
+<script>
+const socket = io();
+let roomId = null;
+let state = null;
+let affinitiesCache = {};
+let gameFinished = false;
+let logs = [];
+
+const $ = (id) => document.getElementById(id);
+
+function setStatus(message, isError = false) {
+    const el = $("status");
+    el.textContent = message;
+    el.classList.toggle("error", isError);
+}
+
+function addLog(message) {
+    logs.unshift(message);
+    logs = logs.slice(0, 8);
+    const logEl = $("log");
+    logEl.innerHTML = "";
+    logs.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        logEl.appendChild(li);
+    });
+}
+
+function isMyTurn() {
+    return state && state.turn === state.player_index;
+}
+
+function isFrozenNow() {
+    return state && state.is_frozen;
+}
+
+function cardLabel(card) {
+    if (card.type === "weapon") {
+        return `${card.name} (arma +${card.damage})`;
+    }
+    if (card.type === "armor") {
+        return `${card.name} (armadura +${card.defense})`;
+    }
+    if (card.type === "potion") {
+        return `${card.name} (cura ${card.heal})`;
+    }
+    if (card.type === "spell") {
+        if (card.effect === "fireball") {
+            return `${card.name} (spell: ${card.damage} dano, ignora armadura)`;
+        }
+        if (card.effect === "lightning") {
+            return `${card.name} (spell: 1d10 dano, ignora armadura)`;
+        }
+        if (card.effect === "freeze") {
+            return `${card.name} (spell: congela adversario)`;
+        }
+        if (card.effect === "iron_skin") {
+            return `${card.name} (spell: +${card.defense} defesa temporaria)`;
+        }
+    }
+    return `${card.name} (${card.type})`;
+}
+
+function emitRoomEvent(eventName, payload = {}) {
+    if (!roomId) {
+        setStatus("Crie ou entre em uma sala primeiro.", true);
+        return;
+    }
+    socket.emit(eventName, { room: roomId, ...payload });
+}
+
+function syncButtons() {
+    const myTurn = isMyTurn() && !gameFinished;
+    const frozen = isFrozenNow();
+    const mustDiscard = !!(state && state.must_discard);
+    $("drawBtn").disabled = !myTurn || !state || state.draw_used || frozen || mustDiscard;
+    $("attackBtn").disabled = !myTurn || !state || frozen || mustDiscard;
+    $("endTurnBtn").disabled = !myTurn || !state || (mustDiscard && !frozen);
+}
+
+function renderHand() {
+    const handEl = $("hand");
+    handEl.innerHTML = "";
+
+    if (!state || !state.hand.length) {
+        handEl.textContent = "Sua mao esta vazia.";
+        return;
+    }
+
+    state.hand.forEach((card, index) => {
+        const line = document.createElement("div");
+        line.className = "hand-line";
+
+        const text = document.createElement("span");
+        text.className = "hand-card";
+        text.textContent = cardLabel(card);
+
+        const playBtn = document.createElement("button");
+        playBtn.textContent = "Jogar";
+        playBtn.disabled = !isMyTurn() || gameFinished || isFrozenNow() || state.must_discard;
+        playBtn.addEventListener("click", () => emitRoomEvent("play_card", { card_index: index }));
+
+        const discardBtn = document.createElement("button");
+        discardBtn.textContent = "Descartar";
+        discardBtn.disabled = !isMyTurn() || gameFinished || isFrozenNow();
+        discardBtn.addEventListener("click", () => emitRoomEvent("discard_card", { card_index: index }));
+
+        line.appendChild(text);
+        line.appendChild(playBtn);
+        line.appendChild(discardBtn);
+        handEl.appendChild(line);
+    });
+}
+
+function renderTips() {
+    const tipsEl = $("tips");
+    if (!state) {
+        tipsEl.textContent = "Sem dados ainda.";
+        return;
+    }
+
+    const hero = state.classes[state.player_index];
+    const data = affinitiesCache[hero];
+    if (!data) {
+        tipsEl.textContent = "Afinidades indisponiveis.";
+        return;
+    }
+
+    let html = "<table>";
+    html += "<tr><th>Tipo</th><th>Lista</th></tr>";
+    html += `<tr><td>Armas favoraveis</td><td>${data.weapon_bonus.length ? data.weapon_bonus.join(", ") : "Nenhuma"}</td></tr>`;
+    html += `<tr><td>Armaduras favoraveis</td><td>${data.armor_bonus.length ? data.armor_bonus.join(", ") : "Nenhuma"}</td></tr>`;
+    html += `<tr><td>Penalidades</td><td>${data.penalty.length ? data.penalty.join(", ") : "Nenhuma"}</td></tr>`;
+    html += "</table>";
+    tipsEl.innerHTML = html;
+}
+
+function renderKeyValueTable(rows) {
+    let html = "<table>";
+    html += "<tr><th>Campo</th><th>Valor</th></tr>";
+    rows.forEach((row) => {
+        html += `<tr><td>${row.label}</td><td>${row.value}</td></tr>`;
+    });
+    html += "</table>";
+    return html;
+}
+
+function renderStateTable() {
+    const me = state.player_index;
+    const enemy = 1 - me;
+    const rows = [
+        { label: "Classe", value: state.classes[me] || "-" },
+        { label: "Classe rival", value: state.classes[enemy] || "-" },
+        { label: "Turno", value: state.turn === me ? "seu" : "rival" },
+        { label: "Baralho", value: String(state.deck_count) },
+        { label: "Seu HP", value: `${state.hp[me]} / ${state.max_hp[me]}` },
+        { label: "HP rival", value: `${state.hp[enemy]} / ${state.max_hp[enemy]}` },
+        { label: "Cartas rival", value: String(state.opponent_hand_size) },
+        { label: "Defesa temporaria", value: String(state.temp_defense) },
+        { label: "Defesa temporaria rival", value: String(state.opponent_temp_defense) },
+        { label: "Congelado", value: state.is_frozen ? `Sim (${state.frozen_turns} turno(s))` : "Nao" },
+        { label: "Congelamento rival", value: state.opponent_frozen_turns > 0 ? `Sim (${state.opponent_frozen_turns} turno(s))` : "Nao" },
+        { label: "Descarte obrigatorio", value: state.must_discard ? "Sim (mao acima de 5)" : "Nao" },
+        { label: "Arma", value: state.weapon ? state.weapon.name : "Nenhuma" },
+        { label: "Armadura", value: state.armor ? state.armor.name : "Nenhuma" },
+        { label: "Arma rival", value: state.opponent_weapon ? state.opponent_weapon.name : "Nenhuma" },
+        { label: "Armadura rival", value: state.opponent_armor ? state.opponent_armor.name : "Nenhuma" },
+        { label: "Rolagem (ultima)", value: state.last_roll === null ? "-" : String(state.last_roll) },
+        { label: "Dano (ultimo)", value: state.last_damage === null ? "-" : String(state.last_damage) },
+        { label: "Ultima acao", value: state.last_action || "-" },
+    ];
+    $("stateTable").innerHTML = renderKeyValueTable(rows);
+}
+
+function renderAttackTable() {
+    const attackTableEl = $("attackTable");
+    if (!state.attack_breakdown || !state.attack_breakdown.length) {
+        attackTableEl.textContent = "Nenhum ataque registrado.";
+        return;
+    }
+    attackTableEl.innerHTML = renderKeyValueTable(state.attack_breakdown);
+}
+
+function renderState() {
+    if (!state) {
+        return;
+    }
+
+    $("game").hidden = false;
+    $("roomDisplay").textContent = `Sala: ${roomId}`;
+
+    renderStateTable();
+    renderAttackTable();
+    renderHand();
+    renderTips();
+    syncButtons();
+}
+
+function onStateEvent(payload) {
+    roomId = payload.room_id || roomId;
+    state = payload.state || state;
+    affinitiesCache = payload.affinities || affinitiesCache;
+    gameFinished = false;
+    renderState();
+}
+
+socket.on("connect", () => setStatus("Conectado ao servidor."));
+socket.on("disconnect", () => setStatus("Conexao perdida.", true));
+
+socket.on("room_created", (data) => {
+    roomId = data.room;
+    $("roomInput").value = roomId;
+    $("roomDisplay").textContent = `Sala: ${roomId}`;
+    setStatus("Sala criada. Aguarde o segundo jogador.");
+    addLog(`Sala ${roomId} criada.`);
+});
+
+socket.on("room_joined", (data) => {
+    roomId = data.room;
+    $("roomDisplay").textContent = `Sala: ${roomId}`;
+    setStatus(`Entrou na sala ${roomId}.`);
+    addLog(`Conectado na sala ${roomId}.`);
+});
+
+socket.on("info_message", (data) => {
+    setStatus(data.message || "Info recebida.");
+    addLog(data.message || "Info recebida.");
+});
+
+socket.on("error_message", (data) => {
+    setStatus(data.message || "Erro desconhecido.", true);
+    addLog(`Erro: ${data.message || "desconhecido"}`);
+});
+
+socket.on("start_game", (payload) => {
+    onStateEvent(payload);
+    setStatus("Partida iniciada.");
+    addLog("Partida iniciada.");
+});
+
+socket.on("state", (payload) => {
+    onStateEvent(payload);
+});
+
+socket.on("opponent_left", (data) => {
+    gameFinished = true;
+    syncButtons();
+    setStatus(data.message || "Oponente saiu.", true);
+    addLog(data.message || "Oponente saiu.");
+});
+
+socket.on("game_over", (data) => {
+    gameFinished = true;
+    syncButtons();
+    const won = state && data.winner_index === state.player_index;
+    const message = won ? "Fim de jogo: voce venceu." : "Fim de jogo: voce perdeu.";
+    setStatus(message, !won);
+    addLog(message);
+    alert(message);
+});
+
+$("createBtn").addEventListener("click", () => {
+    socket.emit("create_room");
+});
+
+$("joinBtn").addEventListener("click", () => {
+    const code = $("roomInput").value.trim();
+    if (!code) {
+        setStatus("Informe o codigo da sala.", true);
+        return;
+    }
+    roomId = code;
+    socket.emit("join_room", { room: code });
+});
+
+$("drawBtn").addEventListener("click", () => emitRoomEvent("draw_card"));
+$("attackBtn").addEventListener("click", () => emitRoomEvent("attack"));
+$("endTurnBtn").addEventListener("click", () => emitRoomEvent("end_turn"));
+</script>
+</body>
+</html>
