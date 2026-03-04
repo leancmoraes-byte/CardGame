@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
+import os
 import random
 
 app = Flask(__name__)
@@ -781,4 +782,5 @@ def disconnect_handler():
 
 
 if __name__ == "__main__":
-    socketio.run(app, host="127.0.0.1", port=8000, debug=True)
+    port = int(os.environ.get("PORT", 8000))
+    socketio.run(app, host="0.0.0.0", port=port)
