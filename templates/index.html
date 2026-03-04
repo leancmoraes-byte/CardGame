@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -7,49 +7,83 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         :root {
-            --bg: #f1f4f8;
-            --panel: #ffffff;
-            --text: #1e2a36;
-            --muted: #5f6c7a;
-            --accent: #007f5f;
-            --danger: #a4161a;
-            --border: #d6dde6;
+            --bg-0: #070a11;
+            --bg-1: #111726;
+            --panel: #171e2f;
+            --panel-strong: #101624;
+            --line: #2a3348;
+            --text: #e8edf8;
+            --muted: #a8b4cc;
+            --accent: #3ddc97;
+            --danger: #ff6b7f;
+            --weapon: #2d7dff;
+            --armor: #26b36a;
+            --spell: #8d4dff;
+            --potion: #ff9f43;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            height: 100%;
             margin: 0;
-            padding: 24px;
+            overflow: hidden;
+        }
+
+        body {
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(160deg, #eff3f8, #dfe7f1);
             color: var(--text);
+            background:
+                radial-gradient(1400px 600px at 8% -20%, #2a3258 0%, transparent 50%),
+                radial-gradient(1200px 500px at 95% 0%, #252144 0%, transparent 45%),
+                linear-gradient(155deg, var(--bg-0), var(--bg-1));
         }
 
         main {
-            max-width: 980px;
+            max-width: 1440px;
+            height: 100vh;
             margin: 0 auto;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow: hidden;
         }
 
-        h1, h2, h3 {
-            margin: 0 0 12px;
+        h1, h2, h3, p {
+            margin: 0;
         }
 
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .row {
+        .top-bar {
+            background: linear-gradient(180deg, #1a2235, #151d2e);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+            padding: 14px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 10px;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .title-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .title-wrap h1 {
+            font-size: 1.1rem;
+            letter-spacing: 0.02em;
+            font-weight: 700;
+        }
+
+        .title-wrap small {
+            color: var(--muted);
+            font-size: 0.82rem;
         }
 
         .lobby {
@@ -57,9 +91,11 @@
             gap: 8px;
             flex-wrap: wrap;
             align-items: center;
+            justify-content: flex-end;
         }
 
         .status {
+            grid-column: 1 / -1;
             font-weight: 600;
             color: var(--accent);
         }
@@ -70,103 +106,490 @@
 
         input, button {
             font: inherit;
-            padding: 8px 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            outline: none;
+        }
+
+        input {
+            min-width: 160px;
+            padding: 10px 12px;
+            color: var(--text);
+            background: #0f1627;
+        }
+
+        input::placeholder {
+            color: #7f8aa3;
         }
 
         button {
+            color: #f5f8ff;
+            background: linear-gradient(180deg, #2b3550, #1f2940);
+            padding: 10px 14px;
+            font-weight: 600;
             cursor: pointer;
-            background: #ffffff;
+            transition: transform 120ms ease, filter 120ms ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
         }
 
         button:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
-            opacity: 0.6;
         }
 
-        .hand-line {
+        #roomDisplay {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 2px;
+        }
+
+        #game {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(360px, 42%) minmax(0, 58%);
+            gap: 12px;
+            overflow: hidden;
+        }
+
+        .column {
+            min-height: 0;
             display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-            padding: 8px 0;
-            border-bottom: 1px dashed var(--border);
+            flex-direction: column;
+            gap: 12px;
         }
 
-        .hand-line:last-child {
-            border-bottom: none;
+        .panel {
+            background: linear-gradient(180deg, #1a2235, #141d2d);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+            padding: 12px;
         }
 
-        .hand-card {
-            min-width: 200px;
+        .panel h3 {
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            letter-spacing: 0.02em;
+            color: #dfe7ff;
         }
 
-        .actions {
+        .state-panel {
             display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .state-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
-            flex-wrap: wrap;
+        }
+
+        .kv-item {
+            background: rgba(10, 15, 26, 0.55);
+            border: 1px solid #29334a;
+            border-radius: 10px;
+            padding: 9px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .kv-item span {
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .kv-item strong {
+            font-size: 0.92rem;
+            color: var(--text);
+        }
+
+        .hp-block {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .hp-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+
+        .hp-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #0d1423;
+            border: 1px solid #25314a;
+            margin-bottom: 8px;
+        }
+
+        .hp-fill {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            transition: width 220ms ease;
+        }
+
+        .hp-fill.me {
+            background: linear-gradient(90deg, #39dd94, #2ebf7e);
+        }
+
+        .hp-fill.enemy {
+            background: linear-gradient(90deg, #ff7d7d, #ff4d6d);
+        }
+
+        .state-foot {
+            background: rgba(9, 14, 24, 0.56);
+            border: 1px solid #29344b;
+            border-radius: 10px;
+            padding: 9px 10px;
+            font-size: 0.84rem;
+            color: #c8d3ea;
+        }
+
+        .state-foot strong {
+            color: #f0f4ff;
+        }
+
+        .table-shell {
+            max-height: 165px;
+            overflow: auto;
+            border-radius: 10px;
+            border: 1px solid #27324a;
         }
 
         table {
-            border-collapse: collapse;
             width: 100%;
-            max-width: 560px;
+            border-collapse: collapse;
+            background: #121a2b;
+            font-size: 0.84rem;
         }
 
         th, td {
-            border: 1px solid var(--border);
-            padding: 8px;
+            border: 1px solid #27324a;
+            padding: 7px 8px;
             text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #d6e1ff;
+            background: #1a253b;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        td {
+            color: #c8d3ea;
+        }
+
+        .log-panel {
+            flex: 1;
+            min-height: 190px;
+            display: flex;
+            flex-direction: column;
         }
 
         .log {
+            list-style: none;
             margin: 0;
-            padding-left: 18px;
+            padding: 0;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log li {
+            background: #0f1728;
+            border: 1px solid #27334a;
+            border-left: 4px solid #3a7afe;
+            border-radius: 8px;
+            padding: 8px 10px;
+            color: #d4def5;
+            font-size: 0.83rem;
+            line-height: 1.35;
+        }
+
+        .hand-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #hand {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            padding-right: 4px;
+            align-content: start;
+        }
+
+        .hand-empty {
+            color: var(--muted);
+            font-size: 0.9rem;
+            background: rgba(9, 14, 24, 0.6);
+            border: 1px dashed #2b3a55;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .hand-item {
+            border-radius: 12px;
+            border: 1px solid #31415f;
+            background: linear-gradient(170deg, #1b2640, #131d31);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+            min-height: 165px;
+        }
+
+        .hand-item.type-weapon {
+            border-color: rgba(45, 125, 255, 0.65);
+            box-shadow: 0 8px 18px rgba(24, 96, 212, 0.25);
+        }
+
+        .hand-item.type-armor {
+            border-color: rgba(38, 179, 106, 0.65);
+            box-shadow: 0 8px 18px rgba(27, 128, 77, 0.24);
+        }
+
+        .hand-item.type-spell {
+            border-color: rgba(141, 77, 255, 0.65);
+            box-shadow: 0 8px 18px rgba(95, 47, 176, 0.24);
+        }
+
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .card-name {
+            font-size: 0.96rem;
+            font-weight: 700;
+            color: #eaf0ff;
+        }
+
+        .card-type {
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+            white-space: nowrap;
+            letter-spacing: 0.03em;
+        }
+
+        .card-type.weapon {
+            color: #e5f0ff;
+            border-color: rgba(45, 125, 255, 0.6);
+            background: rgba(45, 125, 255, 0.24);
+        }
+
+        .card-type.armor {
+            color: #e5fff0;
+            border-color: rgba(38, 179, 106, 0.6);
+            background: rgba(38, 179, 106, 0.2);
+        }
+
+        .card-type.spell {
+            color: #f0e7ff;
+            border-color: rgba(141, 77, 255, 0.6);
+            background: rgba(141, 77, 255, 0.22);
+        }
+
+        .card-type.potion {
+            color: #fff4e7;
+            border-color: rgba(255, 159, 67, 0.6);
+            background: rgba(255, 159, 67, 0.22);
+        }
+
+        .card-type.other {
+            color: #ecf2ff;
+            border-color: rgba(144, 162, 195, 0.5);
+            background: rgba(95, 111, 143, 0.25);
+        }
+
+        .card-bonus {
+            margin: 0;
+            font-size: 0.83rem;
+            color: #c4d1ec;
+            line-height: 1.35;
+            flex: 1;
+        }
+
+        .card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .card-actions button {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            border-radius: 8px;
+        }
+
+        .card-actions .play-btn {
+            background: linear-gradient(180deg, #2f6cf0, #2552b8);
+            border-color: #3b74f3;
+        }
+
+        .card-actions .discard-btn {
+            background: linear-gradient(180deg, #49566f, #384359);
+            border-color: #55627b;
+        }
+
+        .actions-panel .actions {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .actions-panel button {
+            padding: 14px 8px;
+            font-size: 0.96rem;
+            border-radius: 12px;
+        }
+
+        #drawBtn {
+            background: linear-gradient(180deg, #2282ff, #1d5fc6);
+            border-color: #3a8fff;
+        }
+
+        #attackBtn {
+            background: linear-gradient(180deg, #2a9f58, #1f7c43);
+            border-color: #37b969;
+        }
+
+        #endTurnBtn {
+            background: linear-gradient(180deg, #8655ff, #6638cd);
+            border-color: #996dff;
+        }
+
+        @media (max-width: 1100px) {
+            #game {
+                grid-template-columns: 1fr;
+                overflow-y: auto;
+                padding-right: 2px;
+            }
+
+            .hand-panel {
+                min-height: 320px;
+            }
+
+            .log-panel {
+                min-height: 220px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            main {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .top-bar {
+                grid-template-columns: 1fr;
+                padding: 12px;
+            }
+
+            .lobby {
+                justify-content: flex-start;
+            }
+
+            .actions-panel .actions {
+                grid-template-columns: 1fr;
+            }
+
+            #hand {
+                grid-template-columns: 1fr;
+            }
+
+            .state-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
 <main>
-    <h1>Card Game PvP</h1>
-
-    <div class="card">
-        <p id="status" class="status">Conectando...</p>
+    <section class="top-bar">
+        <div class="title-wrap">
+            <h1>Card Game PvP</h1>
+            <small id="roomDisplay">Sala: -</small>
+        </div>
         <div class="lobby">
             <button id="createBtn">Criar sala</button>
             <input id="roomInput" placeholder="Codigo da sala" maxlength="6">
             <button id="joinBtn">Entrar</button>
         </div>
-        <p id="roomDisplay">Sala: -</p>
-    </div>
+        <p id="status" class="status">Conectando...</p>
+    </section>
 
     <section id="game" hidden>
-        <div class="card">
-            <h3>Estado da partida</h3>
-            <div id="stateTable">Sem dados ainda.</div>
-            <h3>Calculo do ultimo ataque</h3>
-            <div id="attackTable">Nenhum ataque registrado.</div>
-        </div>
-
-        <div class="card">
-            <h3>Sua mao</h3>
-            <div id="hand"></div>
-            <div class="actions">
-                <button id="drawBtn">Comprar carta</button>
-                <button id="attackBtn">Atacar</button>
-                <button id="endTurnBtn">Encerrar turno</button>
+        <aside class="column">
+            <div class="panel">
+                <h3>Estado do jogo</h3>
+                <div id="stateTable">Sem dados ainda.</div>
             </div>
-        </div>
 
-        <div class="card">
-            <h3>Dicas de afinidade</h3>
-            <div id="tips">Sem dados ainda.</div>
-        </div>
+            <div class="panel">
+                <h3>Calculo do ultimo ataque</h3>
+                <div id="attackTable">Nenhum ataque registrado.</div>
+            </div>
 
-        <div class="card">
-            <h3>Log</h3>
-            <ul id="log" class="log"></ul>
-        </div>
+            <div class="panel">
+                <h3>Dicas de afinidade</h3>
+                <div id="tips">Sem dados ainda.</div>
+            </div>
+
+            <div class="panel log-panel">
+                <h3>Log do jogo</h3>
+                <ul id="log" class="log"></ul>
+            </div>
+        </aside>
+
+        <section class="column">
+            <div class="panel hand-panel">
+                <h3>Sua mao</h3>
+                <div id="hand"></div>
+            </div>
+
+            <div class="panel actions-panel">
+                <h3>Acoes do jogador</h3>
+                <div class="actions">
+                    <button id="drawBtn">Comprar carta</button>
+                    <button id="attackBtn">Atacar</button>
+                    <button id="endTurnBtn">Encerrar turno</button>
+                </div>
+            </div>
+        </section>
     </section>
 </main>
 
@@ -177,6 +600,7 @@ let state = null;
 let affinitiesCache = {};
 let gameFinished = false;
 let logs = [];
+let lastStateAction = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -187,15 +611,22 @@ function setStatus(message, isError = false) {
 }
 
 function addLog(message) {
-    logs.unshift(message);
-    logs = logs.slice(0, 8);
+    if (!message) {
+        return;
+    }
+    logs.push(message);
+    logs = logs.slice(-200);
+
     const logEl = $("log");
     logEl.innerHTML = "";
+
     logs.forEach((item) => {
         const li = document.createElement("li");
         li.textContent = item;
         logEl.appendChild(li);
     });
+
+    logEl.scrollTop = logEl.scrollHeight;
 }
 
 function isMyTurn() {
@@ -206,31 +637,62 @@ function isFrozenNow() {
     return state && state.is_frozen;
 }
 
-function cardLabel(card) {
+function hpPercent(value, maxValue) {
+    if (!maxValue || maxValue <= 0) {
+        return 0;
+    }
+    return Math.max(0, Math.min(100, (value / maxValue) * 100));
+}
+
+function cardTypeLabel(card) {
     if (card.type === "weapon") {
-        return `${card.name} (arma +${card.damage})`;
+        return "Arma";
     }
     if (card.type === "armor") {
-        return `${card.name} (armadura +${card.defense})`;
+        return "Armadura";
+    }
+    if (card.type === "spell") {
+        return "Spell";
     }
     if (card.type === "potion") {
-        return `${card.name} (cura ${card.heal})`;
+        return "Pocao";
+    }
+    return "Carta";
+}
+
+function cardBonusLabel(card) {
+    if (card.type === "weapon") {
+        return `Bonus: +${card.damage} dano base.`;
+    }
+    if (card.type === "armor") {
+        return `Bonus: +${card.defense} defesa.`;
+    }
+    if (card.type === "potion") {
+        return `Efeito: cura ${card.heal} HP.`;
     }
     if (card.type === "spell") {
         if (card.effect === "fireball") {
-            return `${card.name} (spell: ${card.damage} dano, ignora armadura)`;
+            return `Efeito: ${card.damage} dano direto (ignora armadura).`;
         }
         if (card.effect === "lightning") {
-            return `${card.name} (spell: 1d10 dano, ignora armadura)`;
+            return "Efeito: 1d10 dano direto (ignora armadura).";
         }
         if (card.effect === "freeze") {
-            return `${card.name} (spell: congela adversario)`;
+            return "Efeito: congela o rival por 1 turno.";
         }
         if (card.effect === "iron_skin") {
-            return `${card.name} (spell: +${card.defense} defesa temporaria)`;
+            return `Efeito: +${card.defense} defesa temporaria.`;
         }
+        return "Efeito magico.";
     }
-    return `${card.name} (${card.type})`;
+    return "Sem bonus.";
+}
+
+function cardTypeClass(card) {
+    if (card.type === "weapon" || card.type === "armor" || card.type === "spell" || card.type === "potion") {
+        return card.type;
+    }
+    return "other";
 }
 
 function emitRoomEvent(eventName, payload = {}) {
@@ -245,6 +707,7 @@ function syncButtons() {
     const myTurn = isMyTurn() && !gameFinished;
     const frozen = isFrozenNow();
     const mustDiscard = !!(state && state.must_discard);
+
     $("drawBtn").disabled = !myTurn || !state || state.draw_used || frozen || mustDiscard;
     $("attackBtn").disabled = !myTurn || !state || frozen || mustDiscard;
     $("endTurnBtn").disabled = !myTurn || !state || (mustDiscard && !frozen);
@@ -255,32 +718,57 @@ function renderHand() {
     handEl.innerHTML = "";
 
     if (!state || !state.hand.length) {
-        handEl.textContent = "Sua mao esta vazia.";
+        const empty = document.createElement("p");
+        empty.className = "hand-empty";
+        empty.textContent = "Sua mao esta vazia.";
+        handEl.appendChild(empty);
         return;
     }
 
     state.hand.forEach((card, index) => {
-        const line = document.createElement("div");
-        line.className = "hand-line";
+        const item = document.createElement("article");
+        item.className = `hand-item type-${cardTypeClass(card)}`;
 
-        const text = document.createElement("span");
-        text.className = "hand-card";
-        text.textContent = cardLabel(card);
+        const head = document.createElement("div");
+        head.className = "card-head";
+
+        const name = document.createElement("div");
+        name.className = "card-name";
+        name.textContent = card.name || "Carta";
+
+        const type = document.createElement("span");
+        type.className = `card-type ${cardTypeClass(card)}`;
+        type.textContent = cardTypeLabel(card);
+
+        head.appendChild(name);
+        head.appendChild(type);
+
+        const bonus = document.createElement("p");
+        bonus.className = "card-bonus";
+        bonus.textContent = cardBonusLabel(card);
+
+        const actions = document.createElement("div");
+        actions.className = "card-actions";
 
         const playBtn = document.createElement("button");
+        playBtn.className = "play-btn";
         playBtn.textContent = "Jogar";
         playBtn.disabled = !isMyTurn() || gameFinished || isFrozenNow() || state.must_discard;
         playBtn.addEventListener("click", () => emitRoomEvent("play_card", { card_index: index }));
 
         const discardBtn = document.createElement("button");
+        discardBtn.className = "discard-btn";
         discardBtn.textContent = "Descartar";
         discardBtn.disabled = !isMyTurn() || gameFinished || isFrozenNow();
         discardBtn.addEventListener("click", () => emitRoomEvent("discard_card", { card_index: index }));
 
-        line.appendChild(text);
-        line.appendChild(playBtn);
-        line.appendChild(discardBtn);
-        handEl.appendChild(line);
+        actions.appendChild(playBtn);
+        actions.appendChild(discardBtn);
+
+        item.appendChild(head);
+        item.appendChild(bonus);
+        item.appendChild(actions);
+        handEl.appendChild(item);
     });
 }
 
@@ -298,50 +786,73 @@ function renderTips() {
         return;
     }
 
-    let html = "<table>";
+    let html = '<div class="table-shell"><table>';
     html += "<tr><th>Tipo</th><th>Lista</th></tr>";
     html += `<tr><td>Armas favoraveis</td><td>${data.weapon_bonus.length ? data.weapon_bonus.join(", ") : "Nenhuma"}</td></tr>`;
     html += `<tr><td>Armaduras favoraveis</td><td>${data.armor_bonus.length ? data.armor_bonus.join(", ") : "Nenhuma"}</td></tr>`;
     html += `<tr><td>Penalidades</td><td>${data.penalty.length ? data.penalty.join(", ") : "Nenhuma"}</td></tr>`;
-    html += "</table>";
+    html += "</table></div>";
     tipsEl.innerHTML = html;
 }
 
 function renderKeyValueTable(rows) {
-    let html = "<table>";
+    let html = '<div class="table-shell"><table>';
     html += "<tr><th>Campo</th><th>Valor</th></tr>";
     rows.forEach((row) => {
         html += `<tr><td>${row.label}</td><td>${row.value}</td></tr>`;
     });
-    html += "</table>";
+    html += "</table></div>";
     return html;
 }
 
 function renderStateTable() {
     const me = state.player_index;
     const enemy = 1 - me;
-    const rows = [
-        { label: "Classe", value: state.classes[me] || "-" },
-        { label: "Classe rival", value: state.classes[enemy] || "-" },
-        { label: "Turno", value: state.turn === me ? "seu" : "rival" },
-        { label: "Baralho", value: String(state.deck_count) },
-        { label: "Seu HP", value: `${state.hp[me]} / ${state.max_hp[me]}` },
-        { label: "HP rival", value: `${state.hp[enemy]} / ${state.max_hp[enemy]}` },
-        { label: "Cartas rival", value: String(state.opponent_hand_size) },
-        { label: "Defesa temporaria", value: String(state.temp_defense) },
-        { label: "Defesa temporaria rival", value: String(state.opponent_temp_defense) },
-        { label: "Congelado", value: state.is_frozen ? `Sim (${state.frozen_turns} turno(s))` : "Nao" },
-        { label: "Congelamento rival", value: state.opponent_frozen_turns > 0 ? `Sim (${state.opponent_frozen_turns} turno(s))` : "Nao" },
-        { label: "Descarte obrigatorio", value: state.must_discard ? "Sim (mao acima de 5)" : "Nao" },
-        { label: "Arma", value: state.weapon ? state.weapon.name : "Nenhuma" },
-        { label: "Armadura", value: state.armor ? state.armor.name : "Nenhuma" },
-        { label: "Arma rival", value: state.opponent_weapon ? state.opponent_weapon.name : "Nenhuma" },
-        { label: "Armadura rival", value: state.opponent_armor ? state.opponent_armor.name : "Nenhuma" },
-        { label: "Rolagem (ultima)", value: state.last_roll === null ? "-" : String(state.last_roll) },
-        { label: "Dano (ultimo)", value: state.last_damage === null ? "-" : String(state.last_damage) },
-        { label: "Ultima acao", value: state.last_action || "-" },
-    ];
-    $("stateTable").innerHTML = renderKeyValueTable(rows);
+
+    const myHp = state.hp[me];
+    const myMaxHp = state.max_hp[me];
+    const enemyHp = state.hp[enemy];
+    const enemyMaxHp = state.max_hp[enemy];
+    const myHpWidth = hpPercent(myHp, myMaxHp);
+    const enemyHpWidth = hpPercent(enemyHp, enemyMaxHp);
+    const myTurnLabel = state.turn === me ? "Seu turno" : "Turno do rival";
+    const frozenLabel = state.is_frozen ? `Sim (${state.frozen_turns} turno(s))` : "Nao";
+    const enemyFrozenLabel = state.opponent_frozen_turns > 0 ? `Sim (${state.opponent_frozen_turns} turno(s))` : "Nao";
+
+    let html = '<div class="state-panel">';
+    html += '<div class="state-grid">';
+    html += `<div class="kv-item"><span>Classe do jogador</span><strong>${state.classes[me] || "-"}</strong></div>`;
+    html += `<div class="kv-item"><span>Classe do rival</span><strong>${state.classes[enemy] || "-"}</strong></div>`;
+    html += `<div class="kv-item"><span>Turno atual</span><strong>${myTurnLabel}</strong></div>`;
+    html += `<div class="kv-item"><span>Baralho</span><strong>${state.deck_count}</strong></div>`;
+    html += `<div class="kv-item"><span>Arma</span><strong>${state.weapon ? state.weapon.name : "Nenhuma"}</strong></div>`;
+    html += `<div class="kv-item"><span>Armadura</span><strong>${state.armor ? state.armor.name : "Nenhuma"}</strong></div>`;
+    html += `<div class="kv-item"><span>Ultimo d20</span><strong>${state.last_roll === null ? "-" : state.last_roll}</strong></div>`;
+    html += `<div class="kv-item"><span>Ultimo dano</span><strong>${state.last_damage === null ? "-" : state.last_damage}</strong></div>`;
+    html += "</div>";
+
+    html += '<div class="hp-block">';
+    html += `<div class="hp-row"><span>Seu HP</span><strong>${myHp} / ${myMaxHp}</strong></div>`;
+    html += `<div class="hp-track"><span class="hp-fill me" style="width: ${myHpWidth}%"></span></div>`;
+    html += `<div class="hp-row"><span>HP do rival</span><strong>${enemyHp} / ${enemyMaxHp}</strong></div>`;
+    html += `<div class="hp-track"><span class="hp-fill enemy" style="width: ${enemyHpWidth}%"></span></div>`;
+    html += "</div>";
+
+    html += '<div class="state-grid">';
+    html += `<div class="kv-item"><span>Arma rival</span><strong>${state.opponent_weapon ? state.opponent_weapon.name : "Nenhuma"}</strong></div>`;
+    html += `<div class="kv-item"><span>Armadura rival</span><strong>${state.opponent_armor ? state.opponent_armor.name : "Nenhuma"}</strong></div>`;
+    html += `<div class="kv-item"><span>Cartas do rival</span><strong>${state.opponent_hand_size}</strong></div>`;
+    html += `<div class="kv-item"><span>Descarte obrigatorio</span><strong>${state.must_discard ? "Sim (mao acima de 5)" : "Nao"}</strong></div>`;
+    html += `<div class="kv-item"><span>Congelado</span><strong>${frozenLabel}</strong></div>`;
+    html += `<div class="kv-item"><span>Rival congelado</span><strong>${enemyFrozenLabel}</strong></div>`;
+    html += `<div class="kv-item"><span>Defesa temporaria</span><strong>${state.temp_defense}</strong></div>`;
+    html += `<div class="kv-item"><span>Defesa temp. rival</span><strong>${state.opponent_temp_defense}</strong></div>`;
+    html += "</div>";
+
+    html += `<div class="state-foot"><strong>Ultima acao:</strong> ${state.last_action || "-"}</div>`;
+    html += "</div>";
+
+    $("stateTable").innerHTML = html;
 }
 
 function renderAttackTable() {
@@ -373,6 +884,12 @@ function onStateEvent(payload) {
     state = payload.state || state;
     affinitiesCache = payload.affinities || affinitiesCache;
     gameFinished = false;
+
+    if (state && state.last_action && state.last_action !== lastStateAction) {
+        addLog(state.last_action);
+        lastStateAction = state.last_action;
+    }
+
     renderState();
 }
 
@@ -405,6 +922,7 @@ socket.on("error_message", (data) => {
 });
 
 socket.on("start_game", (payload) => {
+    lastStateAction = null;
     onStateEvent(payload);
     setStatus("Partida iniciada.");
     addLog("Partida iniciada.");
